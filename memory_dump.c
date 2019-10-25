@@ -19,9 +19,12 @@ int main(int argc, char* argv[])
 	bool is_print_hex = false;
 	bool has_addr=false;
 	bool has_size=false;
+	uint8_t *data;
+	uint32_t offset=0;
+	uint8_t format=1;
 
 	int opt;
-	char *string = "a:s:xh";
+	char *string = "a:s:x:h";
 
 	while((opt = getopt(argc, argv, string))!= -1)
 	{
@@ -37,13 +40,18 @@ int main(int argc, char* argv[])
 			break;
 		case 'x':
 			is_print_hex = true;
+			format = strtoul(optarg, 0, 0);
+			if(format != 1 && format != 2 && format !=4)
+			{
+				format = 1;
+			}
 			break;
 		case 'h':
 		default:
 			printf("[%s] [opt]\n", argv[0]);
 			printf("-a addr\n");
 			printf("-s size\n");
-			printf("-x print hex\n");
+			printf("-x [format] : print hex with 1byte, 2bytes or four bytes, default is 1\n");
 			printf("-h help");
 			return 0;
 			break;
@@ -52,13 +60,16 @@ int main(int argc, char* argv[])
 	if(has_addr && has_size)
 	{
 		printf("addr = 0x%x, size = 0x%x is_print_hex=%s\n", addr, size, is_print_hex?"true":"false");
+		offset = addr & 0xFFF;
+		size = size + offset;
+		addr &= 0xFFFFF000;
 	}
 	else
 	{
 		printf("[%s] [opt]\n", argv[0]);
 		printf("-a addr\n");
 		printf("-s size\n");
-		printf("-x print hex\n");
+		printf("-x [format] : print hex with 1byte, 2bytes or four bytes, default is 1\n");
 		printf("-o outfile : save logs to file\n");
 		printf("-h help");
 		return 0;
@@ -80,11 +91,30 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
-	for(unsigned int i = 0; i < size; ++i)
+	for(unsigned int i = offset; i < size; i += format)
 	{
 		if(is_print_hex)
 		{
-			printf("%02x ", map_base[i]);
+			switch(format)
+			{
+			case 1:
+				{
+					printf("%02x ", map_base[i]);
+					break;
+				}
+			case 2:
+				{
+					uint16_t *tmp = (uint16_t*)&map_base[i];
+					printf("%04x ", *tmp);
+					break;
+				}
+			case 4:
+				{
+					uint32_t *tmp = (uint32_t*)&map_base[i];
+					printf("%08x ", *tmp);
+					break;
+				}
+			}
 		}
 		else
 		{
