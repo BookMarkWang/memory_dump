@@ -1,0 +1,3 @@
+/build
+*.o
+mem_dump
