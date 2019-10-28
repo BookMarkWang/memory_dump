@@ -8,10 +8,12 @@
 #include <stdlib.h>
 #include <getopt.h>
 #include <stdbool.h>
+#include <errno.h>
+#include <string.h>
 
 int main(int argc, char* argv[])
 {
-	int fd;
+	int fd, out_fd;
 	unsigned char* map_base;
 
 	uint32_t addr = 0;
@@ -22,9 +24,10 @@ int main(int argc, char* argv[])
 	uint8_t *data;
 	uint32_t offset=0;
 	uint8_t format=1;
+	char* out_file=NULL;
 
 	int opt;
-	char *string = "a:s:x:h";
+	char *string = "a:s:x:o:h";
 
 	while((opt = getopt(argc, argv, string))!= -1)
 	{
@@ -46,15 +49,18 @@ int main(int argc, char* argv[])
 				format = 1;
 			}
 			break;
+		case 'o':
+			out_file = optarg;
+			break;
 		case 'h':
 		default:
 			printf("[%s] [opt]\n", argv[0]);
 			printf("-a addr\n");
 			printf("-s size\n");
 			printf("-x [format] : print hex with 1byte, 2bytes or four bytes, default is 1\n");
-			printf("-h help");
+			printf("-o outfile\n");
+			printf("-h help\n");
 			return 0;
-			break;
 		}
 	}
 	if(has_addr && has_size)
@@ -79,7 +85,7 @@ int main(int argc, char* argv[])
 	fd=open("/dev/mem",O_RDWR | O_SYNC);
 	if(fd<0)
 	{
-		printf("open /dev/mem failed!");
+		printf("open /dev/mem failed!, error is %s\n", strerror(errno));
 		return -1;
 	}
 
@@ -91,37 +97,58 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
-	for(unsigned int i = offset; i < size; i += format)
+	if(out_file)
 	{
-		if(is_print_hex)
+		printf("save the memory to %s\n", out_file);
+		out_fd = open(out_file, O_WRONLY|O_CREAT|O_TRUNC);
+		if(out_fd < 0)
 		{
-			switch(format)
-			{
-			case 1:
-				{
-					printf("%02x ", map_base[i]);
-					break;
-				}
-			case 2:
-				{
-					uint16_t *tmp = (uint16_t*)&map_base[i];
-					printf("%04x ", *tmp);
-					break;
-				}
-			case 4:
-				{
-					uint32_t *tmp = (uint32_t*)&map_base[i];
-					printf("%08x ", *tmp);
-					break;
-				}
-			}
+			printf("failed to open outfile %s, error is %s\n", out_file, strerror(errno));
 		}
 		else
 		{
-			printf("%c", map_base[i]);
+			int len = write(out_fd, map_base, size);
+			if(len != size)
+			{
+				printf("failed to write memory to outfile %s, error is %s\n", out_file, strerror(errno));
+			}
+			close(out_fd);
 		}
 	}
-	printf("\n");
+	else
+	{
+		for(unsigned int i = offset; i < size; i += format)
+		{
+			if(is_print_hex)
+			{
+				switch(format)
+				{
+				case 1:
+					{
+						printf("%02x ", map_base[i]);
+						break;
+					}
+				case 2:
+					{
+						uint16_t *tmp = (uint16_t*)&map_base[i];
+						printf("%04x ", *tmp);
+						break;
+					}
+				case 4:
+					{
+						uint32_t *tmp = (uint32_t*)&map_base[i];
+						printf("%08x ", *tmp);
+						break;
+					}
+				}
+			}
+			else
+			{
+				printf("%c", map_base[i]);
+			}
+		}
+		printf("\n");
+	}
 
 	munmap(map_base, size);
 
